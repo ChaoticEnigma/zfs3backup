@@ -132,11 +132,11 @@ class UploadWorker(object):
             self.multipart.object_key,
             self.multipart.id,
             index
-            )
+        )
         response = part.upload(
             Body = chunk,
             ContentMD5 = base64.b64encode(md5.digest()).decode()
-            )
+        )
         if response['ResponseMetadata']['HTTPStatusCode'] != 200:
             raise UploadException(response['ResponseMetadata'])
         return md5.hexdigest(), response[u'ETag']
@@ -209,7 +209,7 @@ class UploadSupervisor(object):
             ACL="bucket-owner-full-control",
             Metadata=self._metadata,
             **self._headers
-            )
+        )
 
     def _finish_upload(self):
         if len(self.results) == 0:
@@ -218,20 +218,20 @@ class UploadSupervisor(object):
         sorted_results = sorted(
             [{'PartNumber': r[0], 'ETag': r[2]} for r in self.results],
             key = lambda x: x['PartNumber']
-            )
+        )
         return self.multipart.complete(
-                MultipartUpload={
-                    'Parts': sorted_results
-                }
-            )
+            MultipartUpload={
+                'Parts': sorted_results
+            }
+        )
 
     def _handle_result(self):
-        """Process one result. Block untill one is available
+        """Process one result. Block until one is available
         """
         result = self.inbox.get()
         if result.success:
             if self._verbosity >= VERB_PROGRESS:
-                sys.stderr.write(f"\nuploaded chunk {result.index} \n")
+                sys.stderr.write(f"uploaded chunk {result.index}\n")
             self.results.append((result.index, result.md5, result.etag))
             self._pending_chunks -= 1
         else:

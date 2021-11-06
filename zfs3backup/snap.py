@@ -246,7 +246,7 @@ class ZFSSnapshotManager(object):
             cfg = get_config()
             raise SoftError(
                 f"Nothing to backup for filesystem '{cfg.get('FILESYSTEM')}'. Are you sure"
-                 f"SNAPSHOT_PREFIX='{cfg.get('SNAPSHOT_PREFIX')}' is correct?")
+                f"SNAPSHOT_PREFIX='{cfg.get('SNAPSHOT_PREFIX')}' is correct?")
         return list(self._snapshots.values())[-1]
 
     def get(self, name):
@@ -357,13 +357,19 @@ class PairManager(object):
         """Do a full backup of a snapshot. By default latest local snapshot"""
         z_snap = self._snapshot_to_backup(snap_name)
         estimated_size = self._parse_estimated_size(
-            self._cmd.shell(f'zfs send -nvP {z_snap.name}',capture=True))
-        self._cmd.pipe(f"zfs send '{z_snap.name}'",
+            self._cmd.shell(
+                f'zfs send -nvP {z_snap.name}',
+                capture=True
+            )
+        )
+        self._cmd.pipe(
+            f"zfs send '{z_snap.name}'",
             self._compress(
                 self._pput_cmd(
                     estimated=estimated_size,
                     s3_prefix=self.s3_manager.s3_prefix,
-                    snap_name=z_snap.name)
+                    snap_name=z_snap.name,
+                )
             ),
             dry_run=dry_run,
             estimated_size=estimated_size,
@@ -391,21 +397,27 @@ class PairManager(object):
                 break
             current = current.parent
         for z_snap in reversed(to_upload):
-            print(z_snap.parent)
-            print(z_snap)
+            # print(z_snap.parent)
+            # print(z_snap)
             estimated_size = self._parse_estimated_size(
                 self._cmd.shell(
                     f"zfs send -nvP -i '{z_snap.parent.name}' '{z_snap.name}'",
-                    capture=True))
-            self._cmd.pipe(f"zfs send -i '{z_snap.parent.name}' '{z_snap.name}'",
+                    capture=True
+                )
+            )
+            self._cmd.pipe(
+                f"zfs send -i '{z_snap.parent.name}' '{z_snap.name}'",
                 self._compress(
                     self._pput_cmd(
                         estimated=estimated_size,
                         parent=z_snap.parent.name,
                         s3_prefix=self.s3_manager.s3_prefix,
-                        snap_name=z_snap.name)),
-                        dry_run=dry_run,
-                        estimated_size=estimated_size)
+                        snap_name=z_snap.name,
+                    )
+                ),
+                dry_run=dry_run,
+                estimated_size=estimated_size,
+            )
             uploaded_meta.append({'snap_name': z_snap.name, 'size': estimated_size})
         return uploaded_meta
 
@@ -433,10 +445,15 @@ class PairManager(object):
                 current_snap = current_snap.parent
         force = '-F ' if force is True else ''
         for s3_snap in reversed(to_restore):
-            self._cmd.pipe(f"zfs3backup_get {os.path.join(self.s3_manager.s3_prefix, s3_snap.name)}",
-                           self._decompress(cmd=f"zfs recv {force}{s3_snap.name}",
-                           s3_snap=s3_snap,),dry_run=dry_run,
-                           estimated_size=s3_snap.size,)
+            self._cmd.pipe(
+                f"zfs3backup_get {os.path.join(self.s3_manager.s3_prefix, s3_snap.name)}",
+                           self._decompress(
+                               cmd=f"zfs recv {force}{s3_snap.name}",
+                               s3_snap=s3_snap,
+                           ),
+                dry_run=dry_run,
+                estimated_size=s3_snap.size,
+            )
 
 
 def _humanize(size):
