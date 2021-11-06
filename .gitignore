@@ -3,3 +3,7 @@
 .cache
 *.egg-info
 *_local.cfg
+.idea/
+venv/
+build/
+dist/

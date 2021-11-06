@@ -260,16 +260,16 @@ class CommandExecutor(object):
             print(cmd)
         else:
             try:
-            	if capture:
-            		res=subprocess.check_output(
-                    	cmd, shell=True, stderr=subprocess.STDOUT)
-            	else:
-            		res=subprocess.check_call(
-                    	cmd, shell=True)
-            	return res
+                if capture:
+                    res=subprocess.check_output(
+                        cmd, shell=True, stderr=subprocess.STDOUT)
+                else:
+                    res=subprocess.check_call(
+                        cmd, shell=True)
+                return res
             except subprocess.CalledProcessError as err:
-            	print(f"Tried cmd: {err.cmd}\nError Msg: {err.stderr} from err")
-            	sys.exit('Oops :-(')
+                print(f"Tried cmd: {err.cmd}\nError Msg: {err.stderr} from err")
+                sys.exit('Oops :-(')
 
     @property
     @cached
@@ -348,7 +348,7 @@ class PairManager(object):
         if parent is None:
             meta.append("isfull=true")
         else:
-            meta.append("parent={parent}")
+            meta.append(f"parent={parent}")
         if self.compressor is not None:
             meta.append(f"compressor={self.compressor}")
         return f"pput --quiet --estimated {estimated} {' '.join('--meta '+m for m in meta)} {s3_prefix}{snap_name}"
@@ -547,7 +547,7 @@ def parse_args():
                         dest='s3_endpoint_url',
                         default='aws',
                         help=('Choose a non AWS endpoint (e.g. Wasabi)'))
-                                     
+
     subparsers = parser.add_subparsers(help='sub-command help', dest='subcommand')
 
     backup_parser = subparsers.add_parser(
@@ -595,9 +595,8 @@ def main():
         s3 = boto3.Session(profile_name=cfg['PROFILE']).resource('s3')
     else:
         s3 = boto3.Session(profile_name=cfg['PROFILE']).resource('s3',endpoint_url=cfg['ENDPOINT'])
-        
+
     bucket = s3.Bucket(bucket)
-    
 
     fs_section = f"fs:{args.filesystem}"
     if args.snapshot_prefix is None:
