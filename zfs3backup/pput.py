@@ -30,10 +30,10 @@ VERB_QUIET = 0
 VERB_NORMAL = 1
 VERB_PROGRESS = 2
 
-if cfg['ENDPOINT']== 'aws':   # boto3.resource makes an intelligent decision with the default url
-    s3 = boto3.Session(profile_name=cfg['PROFILE']).resource('s3')
+if CFG['ENDPOINT']== 'aws':   # boto3.resource makes an intelligent decision with the default url
+    s3 = boto3.Session(profile_name=CFG['PROFILE']).resource('s3')
 else:
-    s3 = boto3.Session(profile_name=cfg['PROFILE']).resource('s3',endpoint_url=cfg['ENDPOINT'])
+    s3 = boto3.Session(profile_name=CFG['PROFILE']).resource('s3',endpoint_url=CFG['ENDPOINT'])
 
 
 def multipart_etag(digests):
@@ -378,7 +378,8 @@ def main():
         return 1
     if verbosity >= VERB_NORMAL:
         print(json.dumps({'status': 'success', 'etag': etag}))
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
