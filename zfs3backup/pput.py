@@ -20,7 +20,6 @@ import sys
 
 import boto3
 
-
 from zfs3backup.config import get_config
 
 
@@ -30,10 +29,12 @@ VERB_QUIET = 0
 VERB_NORMAL = 1
 VERB_PROGRESS = 2
 
-if CFG['ENDPOINT']== 'aws':   # boto3.resource makes an intelligent decision with the default url
-    s3 = boto3.Session(profile_name=CFG['PROFILE']).resource('s3')
+session = boto3.Session(profile_name=cfg['PROFILE'])
+
+if cfg['ENDPOINT'] == 'aws':
+    s3 = session.resource('s3')  # boto3.resource makes an intelligent decision with the default url
 else:
-    s3 = boto3.Session(profile_name=CFG['PROFILE']).resource('s3',endpoint_url=CFG['ENDPOINT'])
+    s3 = session.resource('s3', endpoint_url=cfg['ENDPOINT'])
 
 
 def multipart_etag(digests):

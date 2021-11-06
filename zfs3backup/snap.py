@@ -587,14 +587,16 @@ def main():
 
     try:
         bucket = cfg['BUCKET']
-
     except KeyError as err:
         sys.stderr.write(f"Configuration error! {err} is not set.\n")
         sys.exit(1)
-    if cfg['ENDPOINT']== 'aws':   # boto3.resource makes an intelligent decision with the default url
-        s3 = boto3.Session(profile_name=cfg['PROFILE']).resource('s3')
+
+    session = boto3.Session(profile_name=cfg['PROFILE'])
+
+    if cfg['ENDPOINT'] == 'aws':
+        s3 = session.resource('s3')  # boto3.resource makes an intelligent decision with the default url
     else:
-        s3 = boto3.Session(profile_name=cfg['PROFILE']).resource('s3',endpoint_url=cfg['ENDPOINT'])
+        s3 = session.resource('s3', endpoint_url=cfg['ENDPOINT'])
 
     bucket = s3.Bucket(bucket)
 
