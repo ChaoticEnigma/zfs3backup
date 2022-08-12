@@ -206,7 +206,7 @@ class UploadSupervisor(object):
 
         self.obj = self.bucket.Object(self.name)
         self.multipart = self.obj.initiate_multipart_upload(
-            ACL="bucket-owner-full-control",
+            #ACL="bucket-owner-full-control",
             Metadata=self._metadata,
             **self._headers
         )
