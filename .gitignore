@@ -1,9 +1,9 @@
+/venv/
+/build/
+/dist/
+.idea/
+.cache
 *.pyc
 *~
-.cache
-*.egg-info
+*.egg-info/
 *_local.cfg
-.idea/
-venv/
-build/
-dist/

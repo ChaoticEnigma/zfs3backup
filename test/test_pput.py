@@ -7,9 +7,9 @@ import hashlib
 import boto3
 import pytest
 
-from zfs3backup.pput import (UploadSupervisor, UploadWorker, StreamHandler,
-                     Result, WorkerCrashed, multipart_etag, parse_metadata,
-                     retry, UploadException)
+from zfs3backup.put import (UploadSupervisor, UploadWorker, StreamHandler,
+                            Result, WorkerCrashed, multipart_etag, parse_metadata,
+                            retry, UploadException)
 from zfs3backup.config import get_config
 
 

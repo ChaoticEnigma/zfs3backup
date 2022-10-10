@@ -11,9 +11,9 @@ import boto3
 import pytest
 
 from zfs3backup.config import get_config
-from zfs3backup.snap import (list_snapshots, S3SnapshotManager, ZFSSnapshotManager,
-                     PairManager, CommandExecutor, IntegrityError, SoftError,
-                     _humanize, handle_soft_errors)
+from zfs3backup.zfs3backup import (list_snapshots, S3SnapshotManager, ZFSSnapshotManager,
+                                   PairManager, CommandExecutor, IntegrityError, SoftError,
+                                   _humanize, handle_soft_errors)
 
 
 MEGA = 1024 ** 2

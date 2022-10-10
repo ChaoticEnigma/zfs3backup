@@ -1,40 +1,33 @@
-"""Multipart parallel s3 upload.
+"""
+Multipart parallel s3 upload.
 
 usage
 pput bucket_name/filename
 """
 
-from queue import Queue
-from io import StringIO
-from collections import namedtuple
-from threading import Thread
+import sys
+import logging
 import argparse
 import base64
 import binascii
 import functools
 import hashlib
-import logging
 import json
-import os
-import sys
+from queue import Queue
+from collections import namedtuple
+from threading import Thread
 
 import boto3
 
+from zfs3backup.common import humanize
 from zfs3backup.config import get_config
 
+log = logging.getLogger(__name__)
 
 Result = namedtuple('Result', ['success', 'traceback', 'index', 'md5', 'etag'])
-CFG = get_config()
 VERB_QUIET = 0
 VERB_NORMAL = 1
 VERB_PROGRESS = 2
-
-session = boto3.Session(profile_name=CFG['PROFILE'])
-
-if CFG['ENDPOINT'] == 'aws':
-    s3 = session.resource('s3')  # boto3.resource makes an intelligent decision with the default url
-else:
-    s3 = session.resource('s3', endpoint_url=CFG['ENDPOINT'])
 
 
 def multipart_etag(digests):
@@ -70,7 +63,7 @@ def parse_size(size):
     return int(size)
 
 
-class StreamHandler(object):
+class StreamHandler:
     def __init__(self, input_stream, chunk_size=5*1024*1024):
         self.input_stream = input_stream
         self.chunk_size = chunk_size
@@ -96,7 +89,7 @@ class StreamHandler(object):
             #     print "partial", len(self._partial_chunk)
 
 
-def retry(times=int(CFG['MAX_RETRIES'])):
+def retry(times=3):
     def decorator(func):
         @functools.wraps(func)
         def wrapped(*a, **kwa):
@@ -115,8 +108,9 @@ class WorkerCrashed(Exception):
     pass
 
 
-class UploadWorker(object):
-    def __init__(self, bucket, multipart, inbox, outbox):
+class UploadWorker:
+    def __init__(self, resource, bucket, multipart, inbox, outbox):
+        self.s3_resource = resource
         self.bucket = bucket
         self.inbox = inbox
         self.outbox = outbox
@@ -127,15 +121,15 @@ class UploadWorker(object):
     @retry()
     def upload_part(self, index, chunk):
         md5 = hashlib.md5(chunk)
-        part = s3.MultipartUploadPart(
+        part = self.s3_resource.MultipartUploadPart(
             self.multipart.bucket_name,
             self.multipart.object_key,
             self.multipart.id,
             index
         )
         response = part.upload(
-            Body = chunk,
-            ContentMD5 = base64.b64encode(md5.digest()).decode()
+            Body=chunk,
+            ContentMD5=base64.b64encode(md5.digest()).decode()
         )
         if response['ResponseMetadata']['HTTPStatusCode'] != 200:
             raise UploadException(response['ResponseMetadata'])
@@ -167,10 +161,12 @@ class UploadException(Exception):
     pass
 
 
-class UploadSupervisor(object):
-    '''Reads chunks and dispatches them to UploadWorkers'''
-
-    def __init__(self, stream_handler, name, bucket, headers=None, metadata=None, verbosity=1):
+class UploadSupervisor:
+    """
+    Reads chunks and dispatches them to UploadWorkers
+    """
+    def __init__(self, resource, stream_handler, name, bucket, headers=None, metadata=None, verbosity=1):
+        self.s3_resource = resource
         self.stream_handler = stream_handler
         self.name = name
         self.bucket = bucket
@@ -192,6 +188,7 @@ class UploadSupervisor(object):
         self.inbox = result_queue
         workers = [
             worker_class(
+                resource=self.s3_resource,
                 bucket=self.bucket,
                 multipart=self.multipart,
                 inbox=work_queue,
@@ -203,6 +200,9 @@ class UploadSupervisor(object):
     def _begin_upload(self):
         if self.multipart is not None:
             raise AssertionError("multipart upload already started")
+
+        log.info(f"{self._headers}")
+        log.info(f"{self._metadata}")
 
         self.obj = self.bucket.Object(self.name)
         self.multipart = self.obj.initiate_multipart_upload(
@@ -301,67 +301,81 @@ def optimize_chunksize(estimated):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Read data from stdin and upload it to s3',
-        epilog=('All optional args have a configurable default. '
-                'Order of precedence is command line args then '
-                'environment variables then user config ~/.zfs3backup.cfg'
-                ' then default config.'),
+        description="Read data from stdin and upload it to s3",
+        epilog=("All optional args have a configurable default. "
+                "Order of precedence is command line args then "
+                "environment variables then user config ~/.zfs3backup.cfg"
+                " then default config."),
     )
-    parser.add_argument('name', help='name of S3 key')
+    parser.add_argument("name", help="name of S3 key")
+    parser.add_argument("--config", dest="config",
+                        help="override configuration file path")
+
     chunk_group = parser.add_mutually_exclusive_group()
-    chunk_group.add_argument('-s', '--chunk-size',
-                             dest='chunk_size',
-                             default=CFG['CHUNK_SIZE'],
-                             help='multipart chunk size, eg: 10M, 1G')
-    chunk_group.add_argument('--estimated',
-                             help='Estimated upload size')
-    parser.add_argument('--file-descriptor',
-                        dest='file_descriptor',
-                        type=int,
-                        help=('read data from this fd instead of stdin; '
-                              'useful if you want an [i]pdb session to use stdin\n'
-                              '`pput --file-descriptor 3 3<./file`'))
-    parser.add_argument('--concurrency',
-                        dest='concurrency',
-                        type=int,
-                        default=int(CFG['CONCURRENCY']),
-                        help='number of worker threads to use')
-    parser.add_argument('--metadata',
-                        action='append',
-                        dest='metadata',
-                        default=list(),
-                        help='Metatada in key=value form')
-    parser.add_argument('--storage-class', default=CFG['S3_STORAGE_CLASS'],
-                        dest='storage_class', help='The S3 storage class. Defaults to STANDARD_IA.')
+    chunk_group.add_argument("-s", "--chunk-size", dest="chunk_size",
+                             help="multipart chunk size, eg: 10M, 1G")
+    chunk_group.add_argument("--estimated",
+                             help="Estimated upload size")
+
+    parser.add_argument("--file-descriptor", dest="file_descriptor", type=int,
+                        help=("read data from this fd instead of stdin; "
+                              "useful if you want an [i]pdb session to use stdin\n"
+                              "`pput --file-descriptor 3 3<./file`"))
+    parser.add_argument("--concurrency", dest="CONCURRENCY", type=int,
+                        help="number of worker threads to use")
+    parser.add_argument("--storage-class", dest="STORAGE_CLASS",
+                        help="The S3 storage class. Defaults to STANDARD_IA.")
+    parser.add_argument("--metadata", "--meta", dest="metadata",
+                        action="append", default=list(),
+                        help="Metatada in key=value form")
+
     quiet_group = parser.add_mutually_exclusive_group()
-    quiet_group.add_argument('--progress',
-                             dest='progress',
-                             action='store_true',
-                             help=('show progress report'))
-    quiet_group.add_argument('--quiet',
-                             dest='quiet',
-                             action='store_true',
-                             help=('don\'t emit any output at all'))
+    quiet_group.add_argument("--progress", dest="progress", action="store_true",
+                             help="show progress report")
+    quiet_group.add_argument("--quiet", dest="quiet", action="store_true",
+                             help="don't emit any output at all")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    input_fd = fopen(args.file_descriptor, mode='rb') if args.file_descriptor else sys.stdin.buffer
+
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(name)-30s %(levelname)8s -- %(message)s")
+
+    dargs = { k: v for k,v in vars(args).items() if v is not None }
+    cfg = get_config(args.config, args=dargs)
+    # log.debug(str(cfg))
+
+    if args.file_descriptor:
+        input_fd = fopen(args.file_descriptor, mode="rb")
+    else:
+        input_fd = sys.stdin.buffer
     if args.estimated is not None:
         chunk_size = optimize_chunksize(parse_size(args.estimated))
     else:
         chunk_size = parse_size(args.chunk_size)
     stream_handler = StreamHandler(input_fd, chunk_size=chunk_size)
 
-    bucket = s3.Bucket(CFG['BUCKET'])
+    profile = cfg["PROFILE"]
+    session = boto3.Session(profile_name=profile)
+
+    endpoint = cfg["ENDPOINT"]
+    if endpoint == "aws":
+        s3 = session.resource("s3")  # boto3.resource makes aprefixn intelligent decision with the default url
+    else:
+        s3 = session.resource("s3", endpoint_url=endpoint)
+
+    bucketname = cfg["BUCKET"]
+    bucket = s3.Bucket(bucketname)
 
     # verbosity: 0 totally silent, 1 default, 2 show progress
     verbosity = 0 if args.quiet else 1 + int(args.progress)
     metadata = parse_metadata(args.metadata)
-    headers = {}
-    headers["StorageClass"] = args.storage_class
+    headers = {
+        "StorageClass": cfg["STORAGE_CLASS"]
+    }
     sup = UploadSupervisor(
+        s3,
         stream_handler,
         args.name,
         bucket=bucket,
@@ -369,18 +383,18 @@ def main():
         headers=headers,
         metadata=metadata
     )
-    if verbosity >= VERB_NORMAL:
-        sys.stderr.write(f"starting upload to {CFG['BUCKET']}/{args.name} with chunksize"
-                         f" {(chunk_size/(1024*1024.0))}M using {args.concurrency} workers\n")
+    concurrency = int(cfg["CONCURRENCY"])
+    log.info(f"starting upload to {bucketname}/{args.name} with chunksize {humanize(chunk_size)} using {concurrency} workers")
+
     try:
-        etag = sup.main_loop(concurrency=args.concurrency)
-    except UploadException as excp:
-        sys.stderr.write(f"{excp}\n")
+        etag = sup.main_loop(concurrency=concurrency)
+    except UploadException as e:
+        log.error(f"{e}")
         return 1
-    if verbosity >= VERB_NORMAL:
-        print(json.dumps({'status': 'success', 'etag': etag}))
+
+    print(json.dumps({"status": "success", "etag": etag}))
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 from zfs3backup.config import get_config
-from zfs3backup.snap import ZFSSnapshotManager, CommandExecutor
+from zfs3backup.zfs3backup import ZFSSnapshotManager, CommandExecutor
 
 
 quiet = False
