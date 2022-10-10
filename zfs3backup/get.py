@@ -18,14 +18,22 @@ def download(bucket, name):
         print(ex)
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser(
         description="Read a key from s3 and write the content to stdout",
     )
     parser.add_argument("name", help="name of S3 key")
-    args = parser.parse_args()
+    parser.add_argument("--verbose", "-v", dest="verbose", action="count",
+                        help="Verbosity")
+    return parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(name)-20s %(levelname)8s -- %(message)s")
+
+def main():
+    args = parse_args()
+
+    if args.verbose:
+        level = logging.DEBUG if args.verbose > 1 else logging.INFO
+        logging.basicConfig(level=level, stream=sys.stderr, format="%(name)-20s %(levelname)8s -- %(message)s")
 
     cfg = get_config()
 

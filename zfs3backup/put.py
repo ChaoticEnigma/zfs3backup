@@ -310,6 +310,8 @@ def parse_args():
     parser.add_argument("name", help="name of S3 key")
     parser.add_argument("--config", dest="config",
                         help="override configuration file path")
+    parser.add_argument("--verbose", "-v", dest="verbose", action="count",
+                        help="Verbosity")
 
     chunk_group = parser.add_mutually_exclusive_group()
     chunk_group.add_argument("-s", "--chunk-size", dest="chunk_size",
@@ -340,7 +342,9 @@ def parse_args():
 def main():
     args = parse_args()
 
-    logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(name)-30s %(levelname)8s -- %(message)s")
+    if args.verbose:
+        level = logging.DEBUG if args.verbose > 1 else logging.INFO
+        logging.basicConfig(level=level, stream=sys.stderr, format="%(name)-30s %(levelname)8s -- %(message)s")
 
     dargs = { k: v for k,v in vars(args).items() if v is not None }
     cfg = get_config(args.config, args=dargs)

@@ -318,7 +318,6 @@ def list_snapshots(cfg, filesystem, bucket, s3_prefix, snapshot_prefix):
 
     listing = []
     for s3_snap, z_snap in pair_manager.list():
-        log.info(f"{z_snap} -- {s3_snap}")
         if s3_snap is None:
             snap_type = "missing"
             health = "-"
@@ -345,7 +344,7 @@ def list_snapshots(cfg, filesystem, bucket, s3_prefix, snapshot_prefix):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="list zfs3backup snapshots")
-    parser.add_argument("filesystem", dest="filesystem",
+    parser.add_argument("filesystem",
                         help="the zfs dataset/filesystem to operate on")
     parser.add_argument("--config", dest="config",
                         help="override configuration file path")
@@ -357,6 +356,8 @@ def parse_args():
                         help="Choose a non default ~/.aws/config profile ")
     parser.add_argument("--endpoint", dest="ENDPOINT",
                         help="Choose a non AWS endpoint (e.g. Wasabi)")
+    parser.add_argument("--verbose", "-v", dest="verbose", action="count",
+                        help="Verbosity")
 
     subparsers = parser.add_subparsers(help="sub-command help", dest="subcommand")
 
@@ -396,7 +397,9 @@ def parse_args():
 def main():
     args = parse_args()
 
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(name)-20s %(levelname)8s -- %(message)s")
+    if args.verbose:
+        level = logging.DEBUG if args.verbose > 1 else logging.INFO
+        logging.basicConfig(level=level, stream=sys.stdout, format="%(name)-20s %(levelname)8s -- %(message)s")
 
     dargs = { k: v for k,v in vars(args).items() if v is not None }
     cfg = get_config(args.config, args=dargs)
