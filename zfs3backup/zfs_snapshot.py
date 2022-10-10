@@ -4,7 +4,6 @@ import subprocess
 import logging
 
 from .common import cached, SoftError
-from .config import get_config
 
 log = logging.getLogger(__name__)
 

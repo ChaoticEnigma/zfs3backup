@@ -2,7 +2,6 @@
 import argparse
 import logging
 import os
-import subprocess
 import sys
 
 import boto3
@@ -137,7 +136,8 @@ class PairManager(object):
         return f"{decrypt_cmd} | {cmd}"
 
     def _pput_cmd(self, estimated, s3_prefix, snap_name, parent=None):
-        put = f'{sys.executable} -m zfs3backup.put'
+        # put = f'{sys.executable} -m zfs3backup.put'
+        put = "zfs3backup_put"
         meta = [f"size={estimated}"]
         if parent is None:
             meta.append("isfull=true")
@@ -152,7 +152,8 @@ class PairManager(object):
         return f"{put} --quiet --estimated {estimated} {' '.join('--meta '+m for m in meta)} {os.path.join(s3_prefix, snap_name)}"
 
     def _get_cmd(self, s3_prefix, snap_name):
-        get = f'{sys.executable} -m zfs3backup.get'
+        # get = f'{sys.executable} -m zfs3backup.get'
+        get = "zfs3backup_get"
         return f"{get} {os.path.join(s3_prefix, snap_name)}"
 
     def backup_full(self, snap_name=None, dry_run=False):
@@ -344,10 +345,10 @@ def list_snapshots(cfg, filesystem, bucket, s3_prefix, snapshot_prefix):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="list zfs3backup snapshots")
+    parser.add_argument("filesystem", dest="filesystem",
+                        help="the zfs dataset/filesystem to operate on")
     parser.add_argument("--config", dest="config",
                         help="override configuration file path")
-    parser.add_argument("--filesystem", "--dataset", dest="filesystem",
-                        help="the zfs dataset/filesystem to operate on")
     parser.add_argument("--s3-prefix", dest="S3_PREFIX",
                         help="S3 key prefix, defaults to zfs3backup/")
     parser.add_argument("--snapshot-prefix", dest="SNAPSHOT_PREFIX",
@@ -400,10 +401,6 @@ def main():
     dargs = { k: v for k,v in vars(args).items() if v is not None }
     cfg = get_config(args.config, args=dargs)
     # log.debug(str(cfg))
-
-    if not args.filesystem:
-        log.error("Need filesystem")
-        return 1
 
     fs_section = f"fs:{args.filesystem}"
 
